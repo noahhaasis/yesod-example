@@ -1,0 +1,13 @@
+<div .ui.container>
+
+    <h1>
+      Critical Action
+
+    <p>
+      Warning: You can only perform this action on users you are a manger of!
+
+    <form action="/critical" method="POST">
+      <label for="username">Username<br>
+      <input type="text" name="username" id="username">
+      <input type="submit" value="Perform critical task">
+
