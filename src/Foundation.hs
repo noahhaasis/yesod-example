@@ -225,6 +225,7 @@ instance YesodBreadcrumbs App where
     breadcrumb HomeR = return ("Home", Nothing)
     breadcrumb (AuthR _) = return ("Login", Just HomeR)
     breadcrumb ProfileR = return ("Profile", Just HomeR)
+    breadcrumb CriticalR = return ("Critical", Just HomeR)
     breadcrumb  _ = return ("home", Nothing)
 
 -- How to run database actions.

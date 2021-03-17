@@ -102,3 +102,17 @@ createUser ident = runDB $ do
         , emailVerkey = Nothing
         }
     return user
+
+createUserWithManager :: Text -> UserId -> YesodExample App (Entity User)
+createUserWithManager ident manager = runDB $ do
+    user <- insertEntity User
+        { userIdent = ident
+        , userPassword = Nothing
+        , userManager = Just manager
+        }
+    _ <- insert Email
+        { emailEmail = ident
+        , emailUserId = Just $ entityKey user
+        , emailVerkey = Nothing
+        }
+    return user
