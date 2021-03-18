@@ -11,8 +11,10 @@
 
 module Foundation where
 
-import Import.NoFoundation
+import Import.NoFoundation hiding ((==.))
 import Database.Persist.Sql (ConnectionPool, runSqlPool)
+import Database.Esqueleto   (select, where_, (==.), (^.), (&&.), from, InnerJoin(..), val)
+import qualified Database.Esqueleto   as E
 import Text.Hamlet          (hamletFile)
 import Text.Jasmine         (minifym)
 import Control.Monad.Logger (LogSource)
@@ -297,34 +299,49 @@ isAuthenticatedAndManager True = do
          Nothing -> return $ Unauthorized "No username provided"
 
 -- There's some duplicate logic to avoid an additional DB call.
--- The first function uses the username for lookup.
--- If the first manager is not the right one the rest of the recursive loop
--- looks up the manager by id, until the currentUser == manager or no manager is found.
+-- The first query is by userName and all following queries are done by userId
 isManagerOf :: UserId -> Text -> Handler Bool
 isManagerOf managerId username = do
-  mUser <- runDB $ getBy $ UniqueUser username
-  case mUser of
-    Just user ->
-      case userManager $ entityVal user of
-        Just manager ->
-          if manager == managerId
-            then return True
-            else managerId `isManagerOf'` manager
-        Nothing -> return False
+  mId <- getManagerOfUsername username
+  case mId of
+    Just id ->
+      if id == managerId then return True
+         else managerId `isManagerOf'` id
     Nothing -> return False
+
+getManagerOfUsername :: Text -> Handler (Maybe UserId)
+getManagerOfUsername username = do
+  managerId <- runDB $
+    select $ from $ \(userA `InnerJoin` userB) -> do
+      where_ (
+        ((userA^.UserManager) ==. E.just (userB^.UserId)) -- userA.manager == userB.userId
+        &&. (userA^.UserIdent ==. val username))          -- userA.userId == username
+      return (userB^.UserId)
+  case managerId of
+    (id:_) -> return $ Just $ E.unValue id
+    _ -> return Nothing
+
 
 isManagerOf' :: UserId -> UserId -> Handler Bool
 isManagerOf' managerId userId = do
-  mUser <- runDB $ get userId
-  case mUser of
-    Just user ->
-      case userManager user of
-        Just manager ->
-          if manager == managerId
-             then return True
-             else managerId `isManagerOf'` manager
-        Nothing -> return False
+  mId <- getManager userId
+  case mId of
+    Just id ->
+      if id == managerId then return True
+         else managerId `isManagerOf'` id
     Nothing -> return False
+
+getManager :: UserId -> Handler (Maybe UserId)
+getManager userId = do
+  managerId <- runDB $
+    select $ from $ \(userA `InnerJoin` userB) -> do
+      where_ (
+        ((userA^.UserManager) ==. E.just (userB^.UserId)) -- userA.manager == userB.userId
+        &&. (userA^.UserId ==. val userId))               -- userA.userId == userId
+      return (userB^.UserId)
+  case managerId of
+    (id:_) -> return $ Just $ E.unValue id
+    _ -> return Nothing
 
 instance YesodAuthPersist App
 
